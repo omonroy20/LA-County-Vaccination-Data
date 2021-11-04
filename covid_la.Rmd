@@ -1,0 +1,113 @@
+---
+title: "Vaccination Rates LA County"
+author: "Oscar Monroy"
+date: "10/30/2021"
+output: pdf_document
+---
+
+# Step 1: Importing and Fixing the Data
+
+### Variable name on R vs. Variable name on Excel:
+
+### X12..with.1..Dose = 12+ with 1+ Dose
+### Population..12.. = Population (12+)
+### X12..Pop..Vaccinated.... = 12+ Pop. Vaccinated (%)
+
+```{r}
+la_c <- read.csv("LA-County-COVID-19-Vaccine-Dashboard-Community-2021-10-24.csv")
+head(la_c) # Looks messy, for R standards
+dim(la_c) # Dimeensions of our data frame
+la_c$City.Community <- as.character(la_c$City.Community)
+# For the next 3 lines, we'll change the class of 
+# the last 3 variables to numeric to make things easier.
+la_c$X12..with.1..Dose <- as.numeric(gsub("[\\,]", "", la_c$X12..with.1..Dose))
+la_c$Population..12.. <- as.numeric(gsub("[\\,]", "", la_c$Population..12..))
+la_c$X12..Pop..Vaccinated.... <- as.numeric(gsub("[\\%,]", "", la_c$X12..Pop..Vaccinated....))
+head(la_c) # Looks much better now
+```
+
+# Step 2: Cleaning the Data
+
+```{r}
+summary(la_c)
+# Looks about right considering this is LA County,
+# however, those NA's need to be taken care of.
+nr <- which(is.na(la_c$X12..with.1..Dose) == TRUE) # Checks index of NA's
+nr
+which(is.na(la_c$Population..12..) == TRUE)
+which(is.na(la_c$X12..Pop..Vaccinated....) == TRUE)
+# Appears that all our NA's happen on the same observations...
+la_c2 <- la_c[-nr, ]
+summary(la_c2) # No NA's; success
+# Now we check for duplicate observations
+which(duplicated(la_c2) == TRUE) # No duplicates
+# We are done with cleaning the data
+```
+
+# Step 3: Visualizations and Analysis
+
+```{r}
+la_c3 <- la_c2
+# Let's compare the population to the percent of that 
+# population that vaccinated.
+plot(la_c3$X12..Pop..Vaccinated.... ~ la_c3$Population..12.., 
+     xlab = "Population (12+)", 
+     ylab = "Percent Vaccinated (12+)",
+     main = "Total Population vs Percent Vaccinated (Age 12+)") # Doesn't show a pattern...
+
+# Let's see if the more populated areas of 
+# LA County have a higher vaccination rate.
+# We'll use a population of 15k as our arbitrary cutoff point
+# between sparsely populated and highly populated.
+tp <- which(la_c3$Population..12.. >= 15000)
+over10k <- rep("N", 324)
+over10k[tp] <- "Y"
+la_c3 <- cbind(la_c3, over10k)
+table(la_c3$over10k) # Amount of areas over/under pop. of 15k
+plot(la_c3$over10k, la_c3$X12..Pop..Vaccinated...., 
+     xlab = "Pop. of 12+ Over 15k?", 
+     ylab = "Percent of Pop. Vaccinated (12+)",
+     main = "Higher Population vs Lower Population Vax Rates")
+
+par(mfrow = c(1, 2))
+plot(la_c3$X12..Pop..Vaccinated....[tp] ~ la_c3$Population..12..[tp],
+     ylim = c(0, 100), xlab = "Popuation <= 15k (12+)",
+     ylab = "Percent Vaccinated (12+)", col = "green", 
+     main = "Pop. <= 15k vs % Vaccinated")
+abline(h = mean(la_c3$X12..Pop..Vaccinated....[tp]), col = "purple")
+plot(la_c3$X12..Pop..Vaccinated....[-tp] ~ la_c3$Population..12..[-tp], 
+     ylim = c(0, 100), xlab = "Popuation > 15k (12+)",
+     ylab = "Percent Vaccinated (12+)", col = "red", 
+     main = "Pop. > 15k vs % Vaccinated")
+abline(h = mean(la_c3$X12..Pop..Vaccinated....[-tp]), col = "purple")
+legend("bottomright", legend = c("mean %"), col = c("purple"), lty = 1)
+```
+
+### We do see that the more populated areas have a higher vaccination rate
+### on average as we can see from the scatterplot where the higher pop. areas
+### have a high concentration between 60% and 90%, whereas the lower pop. 
+### areas seems to show a more varied spread of the percentage vaccinated
+### and a slightly lower average in general. 
+
+```{r}
+# Now let's a try a linear regression model
+la_m <- lm(la_c3$X12..Pop..Vaccinated.... ~ la_c3$Population..12..) 
+summary(la_m)
+plot(la_c3$X12..Pop..Vaccinated.... ~ la_c3$Population..12.., 
+     xlab = "Population (12+)", 
+     ylab = "Percent Vaccinated (12+)",
+     main = "Total Population vs Percent Vaccinated (Age 12+)")
+abline(la_m, col = "red")
+```
+
+### While the summary of the model seems to be promising with how it
+### shows a positive trend in vax rate as pop. increases, adding a 
+### regression line to the first scatterplot doesn't really work,
+### although it could probably be useful to predict the vaccination rates
+### of other districts not listed here. Unfortunately, this data set 
+### is fair;y barebones, so we can't really do much else.
+### I'd love to try and add political alignments for each districts, but 
+### unfortunately, there is no current data set with such info
+### and if it does, it groups all unincorporated regions into one. 
+### For now, we do see that higher population areas do make a difference in 
+### vaccination rates, at least in the LA County. 
